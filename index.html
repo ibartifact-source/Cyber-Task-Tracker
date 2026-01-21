@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cyber Comic Tracker - Secure Version</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Fira+Code:wght@400;500&display=swap');
+        :root {
+            --comic-yellow: #f59e0b; --comic-red: #D32F2F; --comic-blue: #3b82f6;
+            --comic-green: #10b981; --comic-cyan: #06b6d4; --comic-teal: #14b8a6;
+            --bg-dark: #020617; --ink-white: #f8fafc;
+        }
+        body, html { margin: 0; padding: 0; width: 100%; min-height: 100vh; background-color: var(--bg-dark); color: var(--ink-white); font-family: 'Noto Sans TC', sans-serif; background-size: cover; background-position: center; background-attachment: fixed; overflow-x: hidden; }
+        .container { display: flex; flex-direction: column; height: 100vh; padding: 20px; box-sizing: border-box; gap: 15px; position: relative; }
+        @media (min-width: 769px) { .container { width: 380px; margin-right: 40px; float: right; } }
+        @media (max-width: 768px) { .container { width: 100%; margin-right: 0; float: none; padding: 10px; } }
+        .energy-core { border: 3px solid var(--ink-white); background: rgba(7, 13, 30, 0.9); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; transform: skewX(-5deg); border-radius: 15px; box-shadow: 0 0 20px rgba(59, 130, 246, 0.4); animation: borderFlow 10s infinite alternate; }
+        @keyframes borderFlow { 0% { border-color: var(--comic-yellow); } 50% { border-color: var(--comic-blue); } 100% { border-color: var(--comic-green); } }
+        .gold-shimmer { background: linear-gradient(90deg, #b45309 0%, #f59e0b 25%, #fffbeb 50%, #f59e0b 75%, #b45309 100%); background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: goldShimmer 3s linear infinite; font-weight: 900; }
+        @keyframes goldShimmer { to { background-position: 200% center; } }
+        .panel-tasks { flex: 1; padding: 5px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .task-card { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(10px); padding: 18px; border: 2px solid rgba(255,255,255,0.1); border-radius: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .task-card.active { border-left-width: 8px; }
+        .task-card.archived { border-color: var(--comic-green); opacity: 0.8; border-left-width: 2px; }
+        .btn-group { display: flex; gap: 8px; margin-left: 10px; }
+        .btn-end { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 8px 0; width: 65px; text-align: center; font-weight: 900; font-size: 12px; border-radius: 8px; cursor: pointer; }
+        .btn-print { background: transparent; color: var(--comic-cyan); border: 1px solid var(--comic-cyan); padding: 8px 12px; font-weight: 900; font-size: 12px; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+        .btn-print:hover { background: var(--comic-cyan); color: #000; }
+        .panel-lights { background: rgba(15, 23, 42, 0.85); border: 2px solid rgba(255,255,255,0.1); border-radius: 25px; padding: 20px 15px; display: flex; flex-direction: column; gap: 15px; margin-bottom: 50px; }
+        .light-selector { display: flex; justify-content: space-around; }
+        .light-item { display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; width: 60px; }
+        .light-circle { width: 40px; height: 40px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.2); }
+        .light-label { font-size: 10px; font-weight: 900; color: #64748b; font-family: 'Fira Code', monospace; }
+        .bg-trigger { font-size: 11px; color: #475569; cursor: pointer; text-decoration: underline; text-align: center; margin-top: 5px; }
+        .motto-text { font-size: 16px; letter-spacing: 1px; text-align: center; font-weight: 700; min-height: 1.5em; }
+        #inputOverlay { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.95); z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 30px; }
+        .input-box { background: #0f172a; border: 2px solid var(--comic-blue); padding: 30px; border-radius: 32px; width: 100%; max-width: 600px; }
+        .input-box input { width: 100%; background: #000; border: 1px solid #333; padding: 15px; color: #fff; font-size: 18px; border-radius: 15px; margin-bottom: 20px; box-sizing: border-box; }
+        .input-btn { width: 100%; padding: 15px; background: var(--comic-blue); color: #fff; font-weight: 900; border-radius: 15px; border: none; cursor: pointer; }
+
+        @media print {
+            body, html { background: white !important; color: black !important; }
+            .panel-lights, .btn-group, #inputOverlay, .bg-trigger, .btn-print { display: none !important; }
+            .container { float: none; margin: 0 auto; width: 100% !important; }
+            .energy-core { border: 2px solid black !important; background: white !important; box-shadow: none !important; animation: none !important; transform: none !important; }
+            .gold-shimmer { background: none !important; color: black !important; -webkit-text-fill-color: black !important; }
+            .task-card { background: white !important; border: 1px solid #000 !important; color: black !important; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="energyCore" class="energy-core">
+            <div style="display:flex; flex-direction:column;">
+                <span id="labelDate" style="font-size: 11px; color: #94a3b8; letter-spacing: 2px;">DATE</span>
+                <span id="statusDate" class="gold-shimmer" style="font-size: 18px; line-height: 1.1;">----.--.--</span>
+                <span id="statusTime" class="gold-shimmer" style="font-size: 28px; line-height: 1.1;">--:--</span>
+            </div>
+            <button class="btn-print" id="btnPrint" onclick="window.print()">PRINT LOG</button>
+        </div>
+        <div class="panel-tasks" id="taskList"></div>
+        <div class="panel-lights">
+            <div id="guideText" style="font-size:13px; font-weight:900; color:var(--comic-yellow); text-align:center;">SELECT ENERGY</div>
+            <div class="light-selector">
+                <div class="light-item" onclick="prepareTask('--comic-yellow')"><div class="light-circle" style="background:var(--comic-yellow)"></div><div class="light-label">SOLAR</div></div>
+                <div class="light-item" onclick="prepareTask('--comic-cyan')"><div class="light-circle" style="background:var(--comic-cyan)"></div><div class="light-label">CYAN</div></div>
+                <div class="light-item" onclick="prepareTask('--comic-blue')"><div class="light-circle" style="background:var(--comic-blue)"></div><div class="light-label">DUAL</div></div>
+                <div class="light-item" onclick="prepareTask('--comic-teal')"><div class="light-circle" style="background:var(--comic-teal)"></div><div class="light-label">TEAL</div></div>
+                <div class="light-item" onclick="prepareTask('--comic-green')"><div class="light-circle" style="background:var(--comic-green)"></div><div class="light-label">NATURE</div></div>
+            </div>
+            <div class="bg-trigger" id="bgText" onclick="triggerFile()">[ 更換修煉場底圖 ]</div>
+            <div class="motto-container">
+                <div id="mottoText" class="motto-text gold-shimmer">Training slowly with my Inner Demon</div>
+                <div style="display:flex; gap:5px; justify-content:center; margin-top:5px;">
+                    <button class="btn-lang" id="btn-EN" onclick="changeLanguage('EN')">EN</button>
+                    <button class="btn-lang" id="btn-ZH" onclick="changeLanguage('ZH')">ZH</button>
+                    <button class="btn-lang" id="btn-JP" onclick="changeLanguage('JP')">JP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="loadBg(event)">
+    <div id="inputOverlay">
+        <div class="input-box">
+            <h4 id="inputHeader" style="margin:0 0 10px 0; color:var(--comic-blue); font-weight:900;">NEW ARTIFACT</h4>
+            <input type="text" id="taskInput" placeholder="Input mission...">
+            <button class="input-btn" id="btnConfirm" onclick="addTask()">SYNCHRONIZE</button>
+            <button onclick="hideInput()" style="width:100%; background:none; color:#64748b; margin-top:15px; border:none; cursor:pointer; font-size:12px; font-weight:900;">ABORT</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Firebase 配置 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUW2mRgkyTyUvB4VHvEcLNxZ8dru5g18w",
+            authDomain: "cyber-task-tracker-fce32.firebaseapp.com",
+            databaseURL: "https://cyber-task-tracker-fce32-default-rtdb.firebaseio.com",
+            projectId: "cyber-task-tracker-fce32",
+            storageBucket: "cyber-task-tracker-fce32.firebasestorage.app",
+            messagingSenderId: "408868405118",
+            appId: "1:408868405118:web:aa010e6e8f15133426bd2f"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const tasksRef = db.ref('cyberTasks');
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        const translations = {
+            ZH: { date: "日期", print: "列印紀錄", guide: "選擇能量燈號以啟動任務", motto: "陪心魔一起慢慢修練", newTask: "上傳新修煉項目", start: "啟動同步", abort: "放棄任務", del: "刪除", end: "完成", archived: "[已完成]", executing: "[執行中]", init: "始", finish: "終", total: "歷時", confirmDel: "確定要銷毀紀錄嗎？", placeholder: "輸入修煉內容...", bg: "[ 更換修煉場底圖 ]" },
+            EN: { date: "DATE", print: "PRINT LOG", guide: "SELECT ENERGY", motto: "Training slowly with my Inner Demon", newTask: "NEW ARTIFACT", start: "SYNCHRONIZE", abort: "ABORT", del: "DEL", end: "END", archived: "[ARCHIVED]", executing: "[EXECUTING]", init: "INIT", finish: "END", total: "DUR", confirmDel: "Destroy record?", placeholder: "Input mission...", bg: "[ CHANGE BACKGROUND ]" },
+            JP: { date: "日付", print: "ログ出力", guide: "エネルギーを選択して開始", motto: "心の魔と共にゆっくりと修練する", newTask: "新規任務のアップロード", start: "同期開始", abort: "中止", del: "削除", end: "完了", archived: "[完了済み]", executing: "[遂行中]", init: "始", finish: "終", total: "時間", confirmDel: "記録を破棄しますか？", placeholder: "修行内容を入力...", bg: "[ 背景を変更する ]" }
+        };
+
+        let currentLang = localStorage.getItem('userLang') || 'EN';
+        let tasks = [];
+
+        // 登入狀態監控
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                console.log("Logged in:", user.uid);
+                startListening();
+            } else {
+                auth.signInWithPopup(provider).catch(err => console.error("Login failed:", err));
+            }
+        });
+
+        function startListening() {
+            tasksRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                const keys = data ? Object.keys(data).reverse() : [];
+                const vals = data ? Object.values(data).reverse() : [];
+                tasks = vals.map((v, i) => ({ ...v, fbKey: keys[i] }));
+                render();
+            });
+        }
+
+        const savedBg = localStorage.getItem('cyberBg');
+        if (savedBg) { document.body.style.backgroundImage = `url(${savedBg})`; }
+
+        function triggerFile() { document.getElementById('fileInput').click(); }
+        function loadBg(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const b64 = event.target.result;
+                document.body.style.backgroundImage = `url(${b64})`;
+                localStorage.setItem('cyberBg', b64);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function changeLanguage(langCode) {
+            currentLang = langCode;
+            localStorage.setItem('userLang', currentLang);
+            updateUILanguage();
+        }
+
+        function updateUILanguage() {
+            const t = translations[currentLang];
+            document.getElementById('labelDate').innerText = t.date;
+            document.getElementById('btnPrint').innerText = t.print;
+            document.getElementById('guideText').innerText = t.guide;
+            document.getElementById('mottoText').innerText = t.motto;
+            document.getElementById('inputHeader').innerText = t.newTask;
+            document.querySelectorAll('.btn-lang').forEach(btn => btn.classList.remove('active'));
+            const btn = document.getElementById('btn-' + currentLang);
+            if(btn) btn.classList.add('active');
+            render();
+        }
+
+        function updateStatus() {
+            const now = new Date();
+            document.getElementById('statusDate').innerText = `${now.getFullYear()}.${(now.getMonth()+1).toString().padStart(2,'0')}.${now.getDate().toString().padStart(2,'0')}.`;
+            document.getElementById('statusTime').innerText = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        }
+
+        function prepareTask(colorVar) {
+            const color = getComputedStyle(document.documentElement).getPropertyValue(colorVar);
+            document.querySelector('.input-box').style.borderColor = color;
+            document.getElementById('inputOverlay').style.display = 'flex';
+            document.getElementById('taskInput').focus();
+            window.activeColor = colorVar;
+        }
+
+        function addTask() {
+            const val = document.getElementById('taskInput').value.trim();
+            if(!val) return;
+            const newTask = {
+                id: Math.random().toString(16).slice(2,6).toUpperCase(),
+                title: val,
+                start: new Date().getHours().toString().padStart(2,'0')+":"+new Date().getMinutes().toString().padStart(2,'0'),
+                startTimeRaw: new Date().getTime(),
+                done: false,
+                colorVar: window.activeColor,
+                dateStr: new Date().toDateString()
+            };
+            tasksRef.push(newTask);
+            hideInput();
+        }
+
+        function endTask(fbKey) {
+            const now = new Date();
+            const task = tasks.find(t => t.fbKey === fbKey);
+            if(!task) return;
+            const startTime = task.startTimeRaw || now.getTime();
+            const dur = Math.round((now.getTime() - startTime)/60000);
+            const endTime = now.getHours().toString().padStart(2,'0')+":"+now.getMinutes().toString().padStart(2,'0');
+            db.ref('cyberTasks/' + fbKey).update({ done: true, end: endTime, dur: dur });
+        }
+
+        function deleteTask(fbKey) {
+            if(confirm(translations[currentLang].confirmDel)) { db.ref('cyberTasks/' + fbKey).remove(); }
+        }
+
+        function hideInput() { document.getElementById('inputOverlay').style.display='none'; document.getElementById('taskInput').value=''; }
+
+        function render() {
+            const list = document.getElementById('taskList');
+            const t = translations[currentLang];
+            const today = new Date().toDateString();
+            list.innerHTML = '';
+            const todayTasks = tasks.filter(task => task.dateStr === today);
+            todayTasks.forEach((task) => {
+                const color = getComputedStyle(document.documentElement).getPropertyValue(task.colorVar || '--comic-blue');
+                const card = document.createElement('div');
+                card.className = `task-card ${task.done ? 'archived' : 'active'}`;
+                if(!task.done) card.style.borderLeft = `8px solid ${color}`;
+                const meta = task.done 
+                    ? `${t.init}:${task.start} | ${t.finish}:${task.end} | ${t.total}:${task.dur}M`
+                    : `${t.init}:${task.start} | ${t.executing}`;
+                card.innerHTML = `<div class="task-info"><div class="task-meta">#${task.id} ${task.done ? t.archived : t.executing}</div><div class="task-title">${task.title}</div><div class="task-meta">${meta}</div></div><div class="btn-group">${!task.done ? `<button class="btn-end" onclick="endTask('${task.fbKey}')">${t.end}</button>` : ''}<button class="btn-end" style="color:var(--comic-red); border-color:var(--comic-red);" onclick="deleteTask('${task.fbKey}')">${t.del}</button></div>`;
+                list.appendChild(card);
+            });
+        }
+        setInterval(updateStatus, 1000); updateStatus(); updateUILanguage();
+    </script>
+</body>
+</html>
