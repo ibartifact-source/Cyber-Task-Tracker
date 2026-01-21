@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyber Comic Tracker - Secure Version</title>
+    <title>Cyber Comic Tracker - Ultimate Secure</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -95,7 +95,6 @@
     </div>
 
     <script>
-        // --- Firebase 配置 ---
         const firebaseConfig = {
             apiKey: "AIzaSyCUW2mRgkyTyUvB4VHvEcLNxZ8dru5g18w",
             authDomain: "cyber-task-tracker-fce32.firebaseapp.com",
@@ -111,6 +110,8 @@
         const auth = firebase.auth();
         const provider = new firebase.auth.GoogleAuthProvider();
 
+        const MY_UID = "K6snlsbOLuMsJrjBt1tQkGAk3SG3"; // 您的專屬鑰匙
+
         const translations = {
             ZH: { date: "日期", print: "列印紀錄", guide: "選擇能量燈號以啟動任務", motto: "陪心魔一起慢慢修練", newTask: "上傳新修煉項目", start: "啟動同步", abort: "放棄任務", del: "刪除", end: "完成", archived: "[已完成]", executing: "[執行中]", init: "始", finish: "終", total: "歷時", confirmDel: "確定要銷毀紀錄嗎？", placeholder: "輸入修煉內容...", bg: "[ 更換修煉場底圖 ]" },
             EN: { date: "DATE", print: "PRINT LOG", guide: "SELECT ENERGY", motto: "Training slowly with my Inner Demon", newTask: "NEW ARTIFACT", start: "SYNCHRONIZE", abort: "ABORT", del: "DEL", end: "END", archived: "[ARCHIVED]", executing: "[EXECUTING]", init: "INIT", finish: "END", total: "DUR", confirmDel: "Destroy record?", placeholder: "Input mission...", bg: "[ CHANGE BACKGROUND ]" },
@@ -120,10 +121,9 @@
         let currentLang = localStorage.getItem('userLang') || 'EN';
         let tasks = [];
 
-        // 登入狀態監控
         auth.onAuthStateChanged(user => {
-            if (user) {
-                console.log("Logged in:", user.uid);
+            if (user && user.uid === MY_UID) {
+                console.log("Master Identity Verified.");
                 startListening();
             } else {
                 auth.signInWithPopup(provider).catch(err => console.error("Login failed:", err));
@@ -170,8 +170,8 @@
             document.getElementById('mottoText').innerText = t.motto;
             document.getElementById('inputHeader').innerText = t.newTask;
             document.querySelectorAll('.btn-lang').forEach(btn => btn.classList.remove('active'));
-            const btn = document.getElementById('btn-' + currentLang);
-            if(btn) btn.classList.add('active');
+            const targetBtn = document.getElementById('btn-' + currentLang);
+            if(targetBtn) targetBtn.classList.add('active');
             render();
         }
 
@@ -209,8 +209,8 @@
             const now = new Date();
             const task = tasks.find(t => t.fbKey === fbKey);
             if(!task) return;
-            const startTime = task.startTimeRaw || now.getTime();
-            const dur = Math.round((now.getTime() - startTime)/60000);
+            const startRaw = task.startTimeRaw || now.getTime();
+            const dur = Math.round((now.getTime() - startRaw)/60000);
             const endTime = now.getHours().toString().padStart(2,'0')+":"+now.getMinutes().toString().padStart(2,'0');
             db.ref('cyberTasks/' + fbKey).update({ done: true, end: endTime, dur: dur });
         }
